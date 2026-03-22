@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Volatility Predictor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <style>
+* {margin: 0; padding: 0; box-sizing: border-box;}
+body {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background: #0a0e27;
+    background-image: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
+    min-height: 100vh; padding: 20px; color: #e5e7eb;
+}
+.container {max-width: 1400px; margin: 0 auto;}
+header {text-align: center; margin-bottom: 50px; color: white;}
+header h1 {
+    font-size: 3.5rem; margin-bottom: 15px;
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    font-weight: 800; letter-spacing: -2px;
+}
+.subtitle {font-size: 1.2rem; color: #9ca3af; font-weight: 400;}
+.crypto-selector {display: flex; justify-content: center; gap: 15px; margin-bottom: 30px; flex-wrap: wrap;}
+.crypto-btn {
+    background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1); padding: 25px 35px;
+    border-radius: 20px; cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.crypto-btn:hover {transform: translateY(-8px); box-shadow: 0 20px 60px rgba(99, 102, 241, 0.4); border-color: rgba(99, 102, 241, 0.5);}
+.crypto-btn.active {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.3));
+    border-color: #6366f1; box-shadow: 0 20px 60px rgba(99, 102, 241, 0.5);
+}
+.crypto-icon {font-size: 2.5rem; font-weight: bold;}
+.crypto-name {font-size: 1rem; font-weight: 600; color: #e5e7eb;}
+.model-selector-container {display: flex; justify-content: center; margin-bottom: 30px;}
+.model-selector-card {
+    width: 100%; max-width: 700px; padding: 25px 30px;
+    background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+.model-radio-group {display: flex; gap: 20px; justify-content: space-around;}
+.model-radio-label {
+    flex: 1; text-align: center; padding: 18px 20px; border-radius: 16px;
+    cursor: pointer; border: 2px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s; font-weight: 600; font-size: 1rem;
+    color: #9ca3af; background: rgba(255, 255, 255, 0.02);
+}
+.model-radio-label:hover {border-color: #6366f1; transform: translateY(-2px);}
+.model-radio-label.active {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+    color: #a5b4fc; border-color: #6366f1;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+}
+.model-radio-label input {display: none;}
+.content-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px; margin-bottom: 30px;}
+.card {
+    background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px;
+    padding: 30px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    transition: all 0.4s;
+}
+.card:hover {transform: translateY(-5px); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); border-color: rgba(99, 102, 241, 0.3);}
+.card.highlight {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+    border-color: rgba(99, 102, 241, 0.4); box-shadow: 0 8px 32px rgba(99, 102, 241, 0.3);
+}
+.card.chart-card {grid-column: 1 / -1;}
+.card-header {display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;}
+.card-header h3 {font-size: 1.4rem; font-weight: 700; color: #f3f4f6;}
+.badge {
+    background: rgba(99, 102, 241, 0.2); padding: 6px 14px; border-radius: 20px;
+    font-size: 0.8rem; font-weight: 600; color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.update-time {font-size: 0.85rem; color: #6b7280;}
+.price-display {display: flex; align-items: baseline; justify-content: center; margin-bottom: 20px;}
+.currency {
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-right: 8px; font-weight: 700;
+}
+.price-value {font-size: 3.5rem; font-weight: 800; color: #f3f4f6; letter-spacing: -2px;}
+.current-vol {
+    text-align: center; padding: 15px;
+    background: rgba(99, 102, 241, 0.08); border-radius: 12px;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+.label {color: #9ca3af; font-size: 0.95rem; margin-right: 8px;}
+.vol-value {
+    font-weight: 700;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    font-size: 1.2rem;
+}
+.volatility-display {display: flex; flex-direction: column; align-items: center; gap: 30px;}
+.vol-circle {
+    width: 180px; height: 180px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 8px solid rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.05);
+    box-shadow: 0 0 60px rgba(99, 102, 241, 0.4);
+    position: relative; transition: all 0.5s;
+}
+@keyframes pulse {
+    0%, 100% {transform: scale(1); opacity: 1;}
+    50% {transform: scale(1.1); opacity: 0.7;}
+}
+.vol-circle.low {border-color: #10b981; box-shadow: 0 0 60px rgba(16, 185, 129, 0.5); background: rgba(16, 185, 129, 0.1);}
+.vol-circle.medium {border-color: #f59e0b; box-shadow: 0 0 60px rgba(245, 158, 11, 0.5); background: rgba(245, 158, 11, 0.1);}
+.vol-circle.high {border-color: #ef4444; box-shadow: 0 0 60px rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.1);}
+.vol-percentage {font-size: 2.8rem; font-weight: 800; color: #f3f4f6;}
+.vol-indicator {width: 100%;}
+.vol-bar {
+    height: 24px; background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px; overflow: hidden; margin-bottom: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.vol-fill {
+    height: 100%; background: linear-gradient(90deg, #10b981, #34d399);
+    border-radius: 12px; transition: width 0.8s;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+}
+.vol-labels {display: flex; justify-content: space-between; font-size: 0.85rem; color: #6b7280; font-weight: 600;}
+.price-range {display: flex; align-items: center; justify-content: space-around; margin-bottom: 30px; gap: 20px;}
+.range-item {
+    text-align: center; flex: 1; padding: 15px;
+    background: rgba(255, 255, 255, 0.02); border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05); transition: all 0.3s;
+}
+.range-item:hover {transform: translateY(-3px); border-color: rgba(99, 102, 241, 0.3);}
+.range-label {display: block; font-size: 0.9rem; color: #9ca3af; margin-bottom: 10px; font-weight: 500;}
+.range-value {display: block; font-size: 2rem; font-weight: 800; letter-spacing: -1px;}
+.range-item.lower .range-value {
+    background: linear-gradient(135deg, #ef4444, #f87171);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.range-item.upper .range-value {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.range-arrow {
+    font-size: 2.5rem;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.range-visual {margin-top: 25px;}
+.range-bar {
+    height: 50px;
+    background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+    border-radius: 25px; position: relative;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.current-marker {
+    position: absolute; top: -5px; width: 6px; height: 60px;
+    background: #f3f4f6; border-radius: 3px; transform: translateX(-50%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.current-marker::before {
+    content: '▼'; position: absolute; top: -25px; left: 50%;
+    transform: translateX(-50%); color: #f3f4f6; font-size: 1.4rem;
+}
+.card-body canvas {height: 350px !important;}
+.tradingview-widget-container {width: 100%; height: 600px; min-height: 600px;}
+#tradingview_chart {width: 100%; height: 100%; min-height: 600px;}
+.refresh-btn {
+    background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3);
+    padding: 10px 18px; border-radius: 12px; cursor: pointer;
+    font-size: 0.9rem; color: #a5b4fc; font-weight: 600; transition: all 0.3s;
+}
+.refresh-btn:hover {background: rgba(99, 102, 241, 0.25); transform: scale(1.05); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);}
+.model-info {
+    background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px;
+    padding: 35px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+.model-info h4 {font-size: 1.6rem; margin-bottom: 25px; color: #f3f4f6; font-weight: 700;}
+.info-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 25px;}
+.info-item {
+    display: flex; flex-direction: column; gap: 8px; padding: 20px;
+    background: rgba(99, 102, 241, 0.05); border-radius: 16px;
+    border: 1px solid rgba(99, 102, 241, 0.15); transition: all 0.3s;
+}
+.info-item:hover {transform: translateY(-3px); border-color: rgba(99, 102, 241, 0.3);}
+.info-label {font-size: 0.9rem; color: #9ca3af; font-weight: 500;}
+.info-value {
+    font-size: 1.15rem; font-weight: 700;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.loading {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(10, 14, 39, 0.95); backdrop-filter: blur(10px);
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; z-index: 1000;
+}
+.spinner {
+    width: 70px; height: 70px; border: 6px solid rgba(99, 102, 241, 0.2);
+    border-top-color: #6366f1; border-radius: 50%;
+    animation: spin 1s linear infinite; margin-bottom: 25px;
+    box-shadow: 0 0 40px rgba(99, 102, 241, 0.5);
+}
+@keyframes spin {to {transform: rotate(360deg);}}
+.loading p {color: #e5e7eb; font-size: 1.2rem; font-weight: 600;}
+@media (max-width: 768px) {
+    header h1 {font-size: 2.2rem;}
+    .subtitle {font-size: 1rem;}
+    .crypto-btn {padding: 18px 25px;}
+    .content-grid {grid-template-columns: 1fr;}
+    .price-value {font-size: 2.5rem;}
+    .vol-circle {width: 140px; height: 140px;}
+    .model-radio-group {flex-direction: column;}
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Crypto Volatility Predictor</h1>
+            <p class="subtitle">AI-Powered 7-Day Volatility & Price Range Forecasting</p>
+        </header>
+
+        <div class="crypto-selector">
+            <button class="crypto-btn active" data-crypto="BTC"><span class="crypto-icon">₿</span><span class="crypto-name">Bitcoin</span></button>
+            <button class="crypto-btn" data-crypto="ETH"><span class="crypto-icon">Ξ</span><span class="crypto-name">Ethereum</span></button>
+            <button class="crypto-btn" data-crypto="BNB"><span class="crypto-icon">◆</span><span class="crypto-name">Binance</span></button>
+            <button class="crypto-btn" data-crypto="SOL"><span class="crypto-icon">◎</span><span class="crypto-name">Solana</span></button>
+        </div>
+        
+        <div class="model-selector-container">
+            <div class="card model-selector-card">
+                <div class="card-header"><h3>Select Prediction Model</h3><span class="update-time" id="modelSelectionStatus">Ready</span></div>
+                <div class="model-radio-group">
+                    <label class="model-radio-label active" data-model="xgb"><input type="radio" name="model-select" value="xgb" checked>XGBoost (Optimized)</label>
+                    <label class="model-radio-label" data-model="rf"><input type="radio" name="model-select" value="rf">Random Forest</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <div class="card">
+                <div class="card-header"><h3>Current Price</h3><span class="update-time" id="updateTime">Loading...</span></div>
+                <div class="card-body">
+                    <div class="price-display"><span class="currency">$</span><span class="price-value" id="currentPrice">---</span></div>
+                    <div class="current-vol"><span class="label">Current Volatility:</span><span class="vol-value" id="currentVol">--%</span></div>
+                </div>
+            </div>
+
+            <div class="card highlight">
+                <div class="card-header"><h3>Predicted 7-Day Volatility</h3><span class="badge">AI Forecast</span></div>
+                <div class="card-body">
+                    <div class="volatility-display">
+                        <div class="vol-circle" id="volCircle"><span class="vol-percentage" id="predictedVol">--%</span></div>
+                        <div class="vol-indicator">
+                            <div class="vol-bar"><div class="vol-fill" id="volFill"></div></div>
+                            <div class="vol-labels"><span>Low</span><span>Medium</span><span>High</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><h3>Estimated 7-Day Price Range</h3><span class="badge">95% CI</span></div>
+                <div class="card-body">
+                    <div class="price-range">
+                        <div class="range-item lower"><span class="range-label">Lower Bound</span><span class="range-value" id="lowerBound">$---</span></div>
+                        <div class="range-arrow">→</div>
+                        <div class="range-item upper"><span class="range-label">Upper Bound</span><span class="range-value" id="upperBound">$---</span></div>
+                    </div>
+                    <div class="range-visual"><div class="range-bar" id="rangeBar"><span class="current-marker" id="currentMarker"></span></div></div>
+                </div>
+            </div>
+
+            <div class="card chart-card">
+                <div class="card-header"><h3>Live Trading Chart</h3><button class="refresh-btn" id="refreshBtn">🔄 Refresh</button></div>
+                <div class="card-body" style="padding: 0; overflow: hidden;">
+                    <div class="tradingview-widget-container" id="tradingview-widget">
+                        <div id="tradingview_chart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="model-info">
+            <h4>📊 Model Information</h4>
+            <div class="info-grid">
+                <div class="info-item"><span class="info-label">Algorithm:</span><span class="info-value" id="infoAlgorithm">---</span></div>
+                <div class="info-item"><span class="info-label">Features:</span><span class="info-value">8 Technical Indicators</span></div>
+                <div class="info-item"><span class="info-label">Training Data:</span><span class="info-value">365 Days Historical</span></div>
+                <div class="info-item"><span class="info-label">Prediction Horizon:</span><span class="info-value">7 Days Ahead</span></div>
+            </div>
+        </div>
+        <div class="loading" id="loading"><div class="spinner"></div><p>Fetching predictions...</p></div>
+    </div>
+
+    <script>
+let currentCrypto = 'BTC', currentModel = 'xgb', volatilityChart = null, tradingViewWidget = null;
+
+// TradingView symbol mapping
+const tradingViewSymbols = {
+    'BTC': 'BINANCE:BTCUSDT',
+    'ETH': 'BINANCE:ETHUSDT',
+    'BNB': 'BINANCE:BNBUSDT',
+    'SOL': 'BINANCE:SOLUSDT'
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadPrediction('BTC', 'xgb');
+    loadTradingViewChart('BTC');
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    document.querySelectorAll('.crypto-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.crypto-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            currentCrypto = this.dataset.crypto;
+            loadPrediction(currentCrypto, currentModel);
+            loadTradingViewChart(currentCrypto);
+        });
+    });
+
+    document.querySelectorAll('.model-radio-label').forEach(label => {
+        label.addEventListener('click', function() {
+            document.querySelectorAll('.model-radio-label').forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+            currentModel = this.dataset.model;
+            loadPrediction(currentCrypto, currentModel);
+        });
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        loadPrediction(currentCrypto, currentModel);
+        loadTradingViewChart(currentCrypto);
+    });
+}
+
+async function loadPrediction(crypto, model) {
+    showLoading();
+    try {
+        const response = await fetch(`/predict/${crypto}/${model}`);
+        const data = await response.json();
+        if (data.error) {alert('Error: ' + data.error); return;}
+        updatePriceDisplay(data);
+        updateVolatilityDisplay(data);
+        updatePriceRange(data);
+        updateModelInfo(data.model_used);
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Failed to load prediction');
+    } finally {
+        hideLoading();
+    }
+}
+
+function updatePriceDisplay(data) {
+    document.getElementById('currentPrice').textContent = data.current_price.toLocaleString();
+    document.getElementById('currentVol').textContent = data.current_volatility.toFixed(2) + '%';
+    document.getElementById('updateTime').textContent = 'Updated: ' + data.timestamp;
+}
+
+function updateVolatilityDisplay(data) {
+    const vol = data.predicted_volatility;
+    document.getElementById('predictedVol').textContent = vol.toFixed(2) + '%';
+    const fillPercent = Math.min((vol / 10) * 100, 100);
+    document.getElementById('volFill').style.width = fillPercent + '%';
+    const volCircle = document.getElementById('volCircle'), volFill = document.getElementById('volFill');
+    volCircle.className = 'vol-circle';
+    if (vol < 3) {
+        volCircle.classList.add('low');
+        volFill.style.background = 'linear-gradient(90deg, #10b981, #34d399)';
+    } else if (vol < 6) {
+        volCircle.classList.add('medium');
+        volFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+    } else {
+        volCircle.classList.add('high');
+        volFill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+    }
+}
+
+function updateModelInfo(modelUsed) {
+    let algoName = '', status = '';
+    if (modelUsed === 'RF') {
+        algoName = 'Random Forest Regressor';
+        status = 'Model: RF (Random Forest)';
+    } else if (modelUsed === 'XGB') {
+        algoName = 'XGBoost Regressor (Optimized)';
+        status = 'Model: XGB (Optimized)';
+    } else {
+        algoName = 'Mock Algorithm';
+        status = 'Model: Mock Prediction';
+    }
+    document.getElementById('infoAlgorithm').textContent = algoName;
+    document.getElementById('modelSelectionStatus').textContent = status;
+}
+
+function updatePriceRange(data) {
+    document.getElementById('lowerBound').textContent = '$' + data.price_range_lower.toLocaleString();
+    document.getElementById('upperBound').textContent = '$' + data.price_range_upper.toLocaleString();
+    const current = data.current_price, lower = data.price_range_lower, upper = data.price_range_upper;
+    const range = upper - lower;
+    if (range <= 0) {document.getElementById('currentMarker').style.left = '50%'; return;}
+    const position = ((current - lower) / range) * 100;
+    const safePosition = Math.max(0, Math.min(100, position));
+    document.getElementById('currentMarker').style.left = safePosition + '%';
+}
+
+function loadTradingViewChart(crypto) {
+    const symbol = tradingViewSymbols[crypto] || 'BINANCE:BTCUSDT';
+    
+    // Clear existing widget
+    const container = document.getElementById('tradingview_chart');
+    container.innerHTML = '';
+    
+    // Create new TradingView widget
+    tradingViewWidget = new TradingView.widget({
+        "width": "100%",
+        "height": 600,
+        "symbol": symbol,
+        "interval": "D",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "toolbar_bg": "#0a0e27",
+        "enable_publishing": false,
+        "allow_symbol_change": false,
+        "container_id": "tradingview_chart",
+        "hide_side_toolbar": false,
+        "studies": [
+            "RSI@tv-basicstudies",
+            "MASimple@tv-basicstudies"
+        ],
+        "backgroundColor": "#0a0e27",
+        "gridColor": "rgba(255, 255, 255, 0.05)",
+        "hide_legend": false,
+        "save_image": false,
+        "autosize": true
+    });
+}
+
+async function loadHistoricalChart(crypto) {
+    try {
+        const response = await fetch(`/api/historical/${crypto}`);
+        const data = await response.json();
+        if (data.error) return;
+        const ctx = document.getElementById('volatilityChart').getContext('2d');
+        if (volatilityChart) volatilityChart.destroy();
+        volatilityChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.dates,
+                datasets: [{
+                    label: 'Volatility (%)',
+                    data: data.volatility,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {display: false},
+                    tooltip: {
+                        backgroundColor: 'rgba(10, 14, 39, 0.9)',
+                        titleColor: '#a5b4fc',
+                        bodyColor: '#e5e7eb',
+                        borderColor: '#6366f1',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {color: 'rgba(255, 255, 255, 0.05)'},
+                        ticks: {
+                            color: '#9ca3af',
+                            callback: value => value.toFixed(1) + '%'
+                        }
+                    },
+                    x: {
+                        grid: {color: 'rgba(255, 255, 255, 0.05)'},
+                        ticks: {color: '#9ca3af'}
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Chart error:', error);
+    }
+}
+
+function showLoading() {document.getElementById('loading').style.display = 'flex';}
+function hideLoading() {document.getElementById('loading').style.display = 'none';}
+    </script>
+</body>
+</html>
